@@ -1623,13 +1623,37 @@ function FeedbackForm({ onBack }) {
 // ─── Root App Router ──────────────────────────────────────────────────────────
 
 function App() {
-  const [page, setPage] = useState("register") // "register" | "admin" | "feedback"
+  const [page, setPage] = useState(() => {
+    const hash = window.location.hash;
+    if (hash === "#/feedback") return "feedback";
+    if (hash === "#/admin") return "admin";
+    return "register";
+  })
+
+  const handleNavigate = (newPage) => {
+    setPage(newPage);
+    let hash = "";
+    if (newPage === "feedback") hash = "#/feedback";
+    if (newPage === "admin") hash = "#/admin";
+    window.location.hash = hash;
+  }
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === "#/feedback") setPage("feedback");
+      else if (hash === "#/admin") setPage("admin");
+      else setPage("register");
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   return (
     <>
-      {page === "register" && <RegistrationForm onNavigate={setPage} />}
-      {page === "admin" && <AdminView onBack={() => setPage("register")} />}
-      {page === "feedback" && <FeedbackForm onBack={() => setPage("register")} />}
+      {page === "register" && <RegistrationForm onNavigate={handleNavigate} />}
+      {page === "admin" && <AdminView onBack={() => handleNavigate("register")} />}
+      {page === "feedback" && <FeedbackForm onBack={() => handleNavigate("register")} />}
     </>
   )
 }
