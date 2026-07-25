@@ -175,10 +175,13 @@ function RegistrationForm({ onNavigate }) {
 
       // 3. Đếm số đăng ký
       const evId = activeEventId || eventData.id
-      const { count } = await supabase
-        .from('registrations')
-        .select('*', { count: 'exact', head: true })
-        .eq('eventId', evId)
+      let countQuery = supabase.from('registrations').select('*', { count: 'exact', head: true })
+      if (evId === 'default') {
+        countQuery = countQuery.or('eventId.eq.default,eventId.is.null')
+      } else {
+        countQuery = countQuery.eq('eventId', evId)
+      }
+      const { count } = await countQuery
       setRemainingSlots(Math.max(0, (eventData.maxSlots || 10) - (count || 0)))
 
       // 4. Realtime: cập nhật số suất khi có đăng ký mới
@@ -188,10 +191,13 @@ function RegistrationForm({ onNavigate }) {
         .channel(channelName)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' },
           async () => {
-            const { count: newCount } = await supabase
-              .from('registrations')
-              .select('*', { count: 'exact', head: true })
-              .eq('eventId', evId)
+            let q = supabase.from('registrations').select('*', { count: 'exact', head: true })
+            if (evId === 'default') {
+              q = q.or('eventId.eq.default,eventId.is.null')
+            } else {
+              q = q.eq('eventId', evId)
+            }
+            const { count: newCount } = await q
             setRemainingSlots(Math.max(0, (eventData.maxSlots || 10) - (newCount || 0)))
           }
         )
@@ -714,8 +720,12 @@ function AdminView({ onBack }) {
       ])
       if (settingsRes.data) setActiveEvtId(settingsRes.data.activeEventId)
       if (eventsRes.data) {
-        setEvents(eventsRes.data)
-        if (eventsRes.data.length > 0) setSelectedEventId(prev => prev || eventsRes.data[0].id)
+        const loadedEvents = eventsRes.data.length > 0 ? eventsRes.data : [DEFAULT_EVENT]
+        setEvents(loadedEvents)
+        setSelectedEventId(prev => prev || loadedEvents[0].id)
+      } else {
+        setEvents([DEFAULT_EVENT])
+        setSelectedEventId(prev => prev || 'default')
       }
       if (regsRes.data) setRegistrations(regsRes.data)
       if (fbRes.data) setFeedbacks(fbRes.data)
