@@ -4,18 +4,18 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import confetti from "canvas-confetti"
 import logoImg from "./assets/logo.png"
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  User, 
-  Phone, 
-  Mail, 
-  GraduationCap, 
-  Brain, 
-  Sparkles, 
-  Code2, 
-  CheckCircle2, 
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  Phone,
+  Mail,
+  GraduationCap,
+  Brain,
+  Sparkles,
+  Code2,
+  CheckCircle2,
   Heart,
   ChevronRight,
   Target,
@@ -48,6 +48,7 @@ import { Dialog } from "./components/ui/dialog"
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
 const formSchema = z.object({
+  selectedEventId: z.string().min(1, "Vui lòng chọn ngày tham gia"),
   studentName: z.string().min(1, "Họ và tên học sinh là bắt buộc"),
   studentAge: z.string()
     .min(1, "Tuổi học sinh là bắt buộc")
@@ -85,15 +86,15 @@ import { supabase } from "./lib/supabase"
 const ADMIN_PASSWORD = "aiilab2026"
 
 // --- Event Management ---
-const DEFAULT_EVENT = {
-  id: "default",
-  name: "Buổi trải nghiệm AI",
-  date: "01/08/2026",
-  time: "08:30 - 10:00",
-  location: "AiiCafe - 76 Cách mạng, Phú Thọ Hòa, TP. Hồ Chí Minh",
-  maxSlots: 10,
-  createdAt: new Date().toISOString()
-}
+const AUGUST_EVENTS = [
+  { id: "aug-01", name: "Buổi trải nghiệm AI", date: "01/08/2026", time: "16:00 - 17:30", location: "AiiCafe - 76 Cách mạng, Phú Thọ Hòa, TP. Hồ Chí Minh", maxSlots: 10 },
+  { id: "aug-08", name: "Buổi trải nghiệm AI", date: "08/08/2026", time: "16:00 - 17:30", location: "AiiCafe - 76 Cách mạng, Phú Thọ Hòa, TP. Hồ Chí Minh", maxSlots: 10 },
+  { id: "aug-15", name: "Buổi trải nghiệm AI", date: "15/08/2026", time: "16:00 - 17:30", location: "AiiCafe - 76 Cách mạng, Phú Thọ Hòa, TP. Hồ Chí Minh", maxSlots: 10 },
+  { id: "aug-22", name: "Buổi trải nghiệm AI", date: "22/08/2026", time: "16:00 - 17:30", location: "AiiCafe - 76 Cách mạng, Phú Thọ Hòa, TP. Hồ Chí Minh", maxSlots: 10 },
+  { id: "aug-29", name: "Buổi trải nghiệm AI", date: "29/08/2026", time: "16:00 - 17:30", location: "AiiCafe - 76 Cách mạng, Phú Thọ Hòa, TP. Hồ Chí Minh", maxSlots: 10 }
+];
+
+const DEFAULT_EVENT = AUGUST_EVENTS[0];
 
 
 // ─── Star Rating Component ────────────────────────────────────────────────────
@@ -112,11 +113,10 @@ function StarRating({ value, onChange, name }) {
           className="transition-transform hover:scale-110"
         >
           <Star
-            className={`w-8 h-8 transition-colors ${
-              star <= (hover || Number(value))
-                ? "fill-yellow-400 text-yellow-400"
-                : "text-slate-200"
-            }`}
+            className={`w-8 h-8 transition-colors ${star <= (hover || Number(value))
+              ? "fill-yellow-400 text-yellow-400"
+              : "text-slate-200"
+              }`}
           />
         </button>
       ))}
@@ -134,78 +134,76 @@ function StarRating({ value, onChange, name }) {
 function RegistrationForm({ onNavigate }) {
   const [isOpen, setIsOpen] = useState(false)
   const [formData, setFormData] = useState(null)
-  const [activeEvent, setActiveEvent] = useState(null)
-  const [remainingSlots, setRemainingSlots] = useState(0)
+  const [remainingSlotsMap, setRemainingSlotsMap] = useState({})
+  const [visibleEvents, setVisibleEvents] = useState([])
 
   useEffect(() => {
     let regsChannel = null
+    let settingsChannel = null
+
+    const buildVisibleEvents = (hiddenIds, dbEvents) => {
+      // Gộp AUGUST_EVENTS và sự kiện tạo từ admin, lọc bỏ những cái bị ẩn
+      const allIds = new Set(AUGUST_EVENTS.map(e => e.id))
+      const combined = [...AUGUST_EVENTS]
+      dbEvents.forEach(de => { if (!allIds.has(de.id)) combined.push(de) })
+      return combined.filter(e => !hiddenIds.includes(e.id))
+    }
 
     const loadData = async () => {
-      // 1. Lấy active event ID từ bảng settings
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('activeEventId')
-        .eq('id', 'global')
-        .maybeSingle()
+      const [hiddenRes, eventsRes, regsRes] = await Promise.all([
+        supabase.from('settings').select('activeEventId').eq('id', 'hidden_events').maybeSingle(),
+        supabase.from('events').select('*'),
+        supabase.from('registrations').select('eventId'),
+      ])
 
-      let activeEventId = settingsData?.activeEventId || null
-      let eventData = DEFAULT_EVENT
+      const hiddenIds = hiddenRes.data?.activeEventId
+        ? JSON.parse(hiddenRes.data.activeEventId)
+        : []
+      const dbEvents = eventsRes.data || []
+      const visible = buildVisibleEvents(hiddenIds, dbEvents)
+      setVisibleEvents(visible)
 
-      // 2. Lấy thông tin event
-      if (activeEventId) {
-        const { data: evSnap } = await supabase
-          .from('events')
-          .select('*')
-          .eq('id', activeEventId)
-          .maybeSingle()
-        if (evSnap) eventData = evSnap
-      } else {
-        // Không có settings → lấy event đầu tiên
-        const { data: firstEv } = await supabase
-          .from('events')
-          .select('*')
-          .limit(1)
-          .maybeSingle()
-        if (firstEv) {
-          eventData = firstEv
-          activeEventId = firstEv.id
-        }
+      // Đếm số đăng ký cho tất cả sự kiện hiển thị
+      const slotsMap = {}
+      visible.forEach(e => { slotsMap[e.id] = e.maxSlots })
+      if (regsRes.data) {
+        regsRes.data.forEach(r => {
+          if (slotsMap[r.eventId] !== undefined) slotsMap[r.eventId] -= 1
+        })
       }
-      setActiveEvent(eventData)
+      setRemainingSlotsMap(slotsMap)
 
-      // 3. Đếm số đăng ký
-      const evId = activeEventId || eventData.id
-      let countQuery = supabase.from('registrations').select('*', { count: 'exact', head: true })
-      if (evId === 'default') {
-        countQuery = countQuery.or('eventId.eq.default,eventId.is.null')
-      } else {
-        countQuery = countQuery.eq('eventId', evId)
-      }
-      const { count } = await countQuery
-      setRemainingSlots(Math.max(0, (eventData.maxSlots || 10) - (count || 0)))
-
-      // 4. Realtime: cập nhật số suất khi có đăng ký mới
-      if (regsChannel) supabase.removeChannel(regsChannel)
-      const channelName = 'reg-count-' + (evId || 'default') + '-' + Math.random()
+      // Realtime: cập nhật khi có đăng ký mới hoặc settings thay đổi
+      const channelName = 'reg-count-' + Math.random()
       regsChannel = supabase
         .channel(channelName)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' },
           async () => {
-            let q = supabase.from('registrations').select('*', { count: 'exact', head: true })
-            if (evId === 'default') {
-              q = q.or('eventId.eq.default,eventId.is.null')
-            } else {
-              q = q.eq('eventId', evId)
+            const { data: updatedRegs } = await supabase.from('registrations').select('eventId')
+            const newSlotsMap = {}
+            visible.forEach(e => { newSlotsMap[e.id] = e.maxSlots })
+            if (updatedRegs) {
+              updatedRegs.forEach(r => {
+                if (newSlotsMap[r.eventId] !== undefined) newSlotsMap[r.eventId] -= 1
+              })
             }
-            const { count: newCount } = await q
-            setRemainingSlots(Math.max(0, (eventData.maxSlots || 10) - (newCount || 0)))
+            setRemainingSlotsMap(newSlotsMap)
           }
         )
+        .subscribe()
+
+      settingsChannel = supabase
+        .channel('settings-visibility-' + Math.random())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, loadData)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, loadData)
         .subscribe()
     }
 
     loadData()
-    return () => { if (regsChannel) supabase.removeChannel(regsChannel) }
+    return () => {
+      if (regsChannel) supabase.removeChannel(regsChannel)
+      if (settingsChannel) supabase.removeChannel(settingsChannel)
+    }
   }, [])
 
   const {
@@ -219,6 +217,7 @@ function RegistrationForm({ onNavigate }) {
   } = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      selectedEventId: "",
       studentName: "",
       studentAge: "",
       studentClass: "",
@@ -246,7 +245,7 @@ function RegistrationForm({ onNavigate }) {
 
   const onSubmit = async (data) => {
     const { error } = await supabase.from('registrations').insert({
-      eventId: activeEvent.id,
+      eventId: data.selectedEventId,
       studentName: data.studentName,
       studentAge: data.studentAge,
       studentClass: data.studentClass || null,
@@ -281,7 +280,7 @@ function RegistrationForm({ onNavigate }) {
     reset()
   }
 
-  if (!activeEvent) return <div className="min-h-screen bg-[#F6F8FC] flex items-center justify-center"><p className="text-slate-500 font-medium animate-pulse">Đang tải thông tin sự kiện...</p></div>
+  if (visibleEvents.length === 0 && Object.keys(remainingSlotsMap).length === 0) return <div className="min-h-screen bg-[#F6F8FC] flex items-center justify-center"><p className="text-slate-500 font-medium animate-pulse">Đang tải thông tin sự kiện...</p></div>
 
   return (
     <div className="min-h-screen bg-[#F6F8FC] py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center">
@@ -306,7 +305,7 @@ function RegistrationForm({ onNavigate }) {
               </div>
               <div className="shrink-0 flex flex-col items-end gap-2">
                 <span className="inline-flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold bg-[#FEF7E0] text-primary border border-secondary animate-pulse whitespace-nowrap">
-                  🔥 Còn lại {remainingSlots} suất
+                  🔥 Đang mở đăng ký
                 </span>
                 {/* Hidden admin & feedback nav buttons */}
                 <div className="flex gap-2 mt-1">
@@ -336,7 +335,7 @@ function RegistrationForm({ onNavigate }) {
                   Hoạt động trải nghiệm
                 </span>
                 <h2 className="text-2xl md:text-3xl font-extrabold text-primary leading-snug">
-                  {activeEvent.name}
+                  {DEFAULT_EVENT.name}
                 </h2>
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-2xl">
@@ -345,32 +344,24 @@ function RegistrationForm({ onNavigate }) {
             </div>
 
             {/* Event Details */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+
               <div className="flex items-center space-x-3 text-slate-600 bg-slate-50 p-3 rounded-xl hover:bg-slate-100/50 transition-colors">
-                <div className="bg-primary/5 p-2 rounded-lg text-primary">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-slate-400">Ngày diễn ra</p>
-                  <p className="text-sm font-bold text-slate-700">{activeEvent.date}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 text-slate-600 bg-slate-50 p-3 rounded-xl hover:bg-slate-100/50 transition-colors">
-                <div className="bg-primary/5 p-2 rounded-lg text-primary">
+                <div className="bg-primary/5 p-2 rounded-lg text-primary shrink-0">
                   <Clock className="w-5 h-5" />
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Thời gian</p>
-                  <p className="text-sm font-bold text-slate-700">{activeEvent.time}</p>
+                  <p className="text-sm font-bold text-slate-700">16:00 - 17:30</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3 text-slate-600 bg-slate-50 p-3 rounded-xl hover:bg-slate-100/50 transition-colors">
-                <div className="bg-primary/5 p-2 rounded-lg text-primary">
+                <div className="bg-primary/5 p-2 rounded-lg text-primary shrink-0">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-slate-400">Địa điểm</p>
-                  <p className="text-sm font-bold text-slate-700 leading-snug">{activeEvent.location}</p>
+                  <p className="text-sm font-bold text-slate-700 leading-snug">{DEFAULT_EVENT.location}</p>
                 </div>
               </div>
             </div>
@@ -379,6 +370,39 @@ function RegistrationForm({ onNavigate }) {
 
         {/* Main Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+
+          {/* CARD 0: Chọn ngày tham gia */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2.5">
+                <div className="bg-primary/5 p-2 rounded-xl text-primary"><Calendar className="w-5 h-5" /></div>
+                <div>
+                  <CardTitle>Chọn ngày tham gia</CardTitle>
+                  <CardDescription>Vui lòng chọn 1 ngày trong tháng 8 này nhé!</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {visibleEvents.length === 0 ? (
+                  <p className="col-span-2 text-sm text-slate-400 text-center py-4">Hiện chưa có buổi trải nghiệm nào được mở. Vui lòng quay lại sau!</p>
+                ) : visibleEvents.map(ev => {
+                  const remaining = remainingSlotsMap[ev.id] ?? ev.maxSlots;
+                  const isFull = remaining <= 0;
+                  return (
+                    <label key={ev.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${isFull ? 'opacity-50 cursor-not-allowed bg-slate-50' : watch("selectedEventId") === ev.id ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-slate-100 bg-white hover:bg-slate-50'}`}>
+                      <input type="radio" className="sr-only" value={ev.id} disabled={isFull} {...register("selectedEventId")} />
+                      <div>
+                        <p className="font-bold text-slate-700">{ev.date} <span className="text-sm font-medium text-slate-500">({ev.time})</span></p>
+                        {isFull && <p className="text-xs font-semibold text-red-500">Đã hết suất</p>}
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              {errors.selectedEventId && <p className="text-xs font-semibold text-red-500 mt-2">{errors.selectedEventId.message}</p>}
+            </CardContent>
+          </Card>
 
           {/* CARD 1: Thông tin học sinh */}
           <Card>
@@ -706,26 +730,35 @@ function AdminView({ onBack }) {
   const [activeTab, setActiveTab] = useState("events")
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [newEvent, setNewEvent] = useState({ name: "", date: "", time: "", location: "", maxSlots: 10 })
-  const [activeEvtId, setActiveEvtId] = useState("default")
+  const [hiddenEventIds, setHiddenEventIds] = useState([])
 
   useEffect(() => {
     if (!authenticated) return
 
     const loadAll = async () => {
-      const [settingsRes, eventsRes, regsRes, fbRes] = await Promise.all([
-        supabase.from('settings').select('activeEventId').eq('id', 'global').maybeSingle(),
+      const [hiddenRes, eventsRes, regsRes, fbRes] = await Promise.all([
+        supabase.from('settings').select('activeEventId').eq('id', 'hidden_events').maybeSingle(),
         supabase.from('events').select('*'),
         supabase.from('registrations').select('*').order('registeredAt', { ascending: false }),
         supabase.from('feedbacks').select('*').order('submittedAt', { ascending: false }),
       ])
-      if (settingsRes.data) setActiveEvtId(settingsRes.data.activeEventId)
+      const hidden = hiddenRes.data?.activeEventId
+        ? JSON.parse(hiddenRes.data.activeEventId)
+        : []
+      setHiddenEventIds(hidden)
       if (eventsRes.data) {
-        const loadedEvents = eventsRes.data.length > 0 ? eventsRes.data : [DEFAULT_EVENT]
+        const allEvents = [...eventsRes.data];
+        AUGUST_EVENTS.forEach(ae => {
+          if (!allEvents.find(e => e.id === ae.id)) {
+            allEvents.push(ae);
+          }
+        });
+        const loadedEvents = allEvents.length > 0 ? allEvents : [DEFAULT_EVENT]
         setEvents(loadedEvents)
         setSelectedEventId(prev => prev || loadedEvents[0].id)
       } else {
-        setEvents([DEFAULT_EVENT])
-        setSelectedEventId(prev => prev || 'default')
+        setEvents(AUGUST_EVENTS)
+        setSelectedEventId(prev => prev || AUGUST_EVENTS[0].id)
       }
       if (regsRes.data) setRegistrations(regsRes.data)
       if (fbRes.data) setFeedbacks(fbRes.data)
@@ -780,8 +813,13 @@ function AdminView({ onBack }) {
     setNewEvent({ name: "", date: "", time: "", location: "", maxSlots: 10 })
   }
 
-  const handleSetActiveEvent = async (id) => {
-    await supabase.from('settings').upsert({ id: 'global', activeEventId: id })
+  const handleToggleVisibility = async (id) => {
+    const isHidden = hiddenEventIds.includes(id)
+    const newHidden = isHidden
+      ? hiddenEventIds.filter(h => h !== id)
+      : [...hiddenEventIds, id]
+    await supabase.from('settings').upsert({ id: 'hidden_events', activeEventId: JSON.stringify(newHidden) })
+    setHiddenEventIds(newHidden)
   }
 
   const exportCSV = (data, filename) => {
@@ -903,32 +941,42 @@ function AdminView({ onBack }) {
                     <Calendar className="w-4 h-4 text-primary" /> Tạo sự kiện mới
                   </h3>
                   <form onSubmit={handleCreateEvent} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                    <Input placeholder="Tên sự kiện" value={newEvent.name} onChange={e => setNewEvent({...newEvent, name: e.target.value})} className="md:col-span-2" required />
-                    <Input placeholder="Ngày (VD: 01/08/2026)" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} required />
-                    <Input placeholder="Giờ (VD: 08:30 - 10:00)" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} required />
-                    <Input placeholder="Số suất" type="number" value={newEvent.maxSlots} onChange={e => setNewEvent({...newEvent, maxSlots: e.target.value})} required />
-                    <Input placeholder="Địa điểm" value={newEvent.location} onChange={e => setNewEvent({...newEvent, location: e.target.value})} className="sm:col-span-2 md:col-span-4" required />
+                    <Input placeholder="Tên sự kiện" value={newEvent.name} onChange={e => setNewEvent({ ...newEvent, name: e.target.value })} className="md:col-span-2" required />
+                    <Input placeholder="Ngày (VD: 01/08/2026)" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })} required />
+                    <Input placeholder="Giờ (VD: 08:30 - 10:00)" value={newEvent.time} onChange={e => setNewEvent({ ...newEvent, time: e.target.value })} required />
+                    <Input placeholder="Số suất" type="number" value={newEvent.maxSlots} onChange={e => setNewEvent({ ...newEvent, maxSlots: e.target.value })} required />
+                    <Input placeholder="Địa điểm" value={newEvent.location} onChange={e => setNewEvent({ ...newEvent, location: e.target.value })} className="sm:col-span-2 md:col-span-4" required />
                     <Button type="submit" className="w-full">Tạo mới</Button>
                   </form>
                 </div>
 
                 <div className="space-y-3">
                   <h3 className="font-bold text-slate-700 text-sm">Danh sách sự kiện ({events.length})</h3>
-                  {events.map((ev, i) => (
-                    <div key={ev.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border ${activeEvtId === ev.id ? 'border-primary bg-primary/5' : 'border-slate-100 bg-white'}`}>
+                  {events.map((ev, i) => {
+                    const isHidden = hiddenEventIds.includes(ev.id)
+                    return (
+                    <div key={ev.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border transition-all ${isHidden ? 'border-slate-100 bg-slate-50 opacity-60' : 'border-green-200 bg-green-50/40'}`}>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-slate-800">{ev.name}</p>
-                          {activeEvtId === ev.id && <span className="text-[10px] bg-primary text-white px-2 py-0.5 rounded-full font-bold">ĐANG ACTIVE</span>}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className={`font-bold ${isHidden ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{ev.name}</p>
+                          {!isHidden
+                            ? <span className="text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full font-bold">ĐANG HIỂN THỊ</span>
+                            : <span className="text-[10px] bg-slate-400 text-white px-2 py-0.5 rounded-full font-bold">ĐÃ ẨN</span>
+                          }
                         </div>
                         <p className="text-xs text-slate-500 mt-1">{ev.date} • {ev.time} • {ev.location} • {ev.maxSlots} suất</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {activeEvtId !== ev.id && (
-                          <button onClick={() => handleSetActiveEvent(ev.id)} className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors">
-                            Sử dụng cho Form
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleToggleVisibility(ev.id)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                            isHidden
+                              ? 'text-green-700 bg-green-100 hover:bg-green-200'
+                              : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
+                          }`}
+                        >
+                          {isHidden ? '👁 Hiện trên Form' : '🙈 Ẩn khỏi Form'}
+                        </button>
                         {ev.id !== "default" && (
                           <button onClick={() => setDeleteConfirm({ index: i, type: "event" })} className="text-red-400 hover:text-red-600 transition-colors p-1.5 bg-red-50 rounded-lg">
                             <Trash2 className="w-4 h-4" />
@@ -936,7 +984,7 @@ function AdminView({ onBack }) {
                         )}
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             )}
@@ -1030,11 +1078,10 @@ function AdminView({ onBack }) {
                     {filteredFeedbacks.map((fb, i) => (
                       <div
                         key={i}
-                        className={`rounded-2xl border p-4 hover:shadow-sm transition-shadow space-y-3 ${
-                          fb.wantCourse === "Có"
-                            ? "bg-orange-50/40 border-orange-200/60"
-                            : "bg-slate-50 border-slate-100"
-                        }`}
+                        className={`rounded-2xl border p-4 hover:shadow-sm transition-shadow space-y-3 ${fb.wantCourse === "Có"
+                          ? "bg-orange-50/40 border-orange-200/60"
+                          : "bg-slate-50 border-slate-100"
+                          }`}
                       >
                         {/* Header row */}
                         <div className="flex items-start justify-between gap-3">
@@ -1051,7 +1098,7 @@ function AdminView({ onBack }) {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <div className="flex items-center gap-1">
-                              {[1,2,3,4,5].map(s => (
+                              {[1, 2, 3, 4, 5].map(s => (
                                 <Star key={s} className={`w-4 h-4 ${s <= Number(fb.overallRating) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"}`} />
                               ))}
                               <span className="text-xs font-bold text-slate-600 ml-1">{ratingLabel(fb.overallRating)}</span>
@@ -1145,36 +1192,10 @@ function AdminView({ onBack }) {
 function FeedbackForm({ onBack }) {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [submittedData, setSubmittedData] = useState(null)
-  const [activeEvent, setActiveEvent] = useState(null)
+  const [selectedFeedbackEventId, setSelectedFeedbackEventId] = useState("")
 
-  useEffect(() => {
-    const loadActiveEvent = async () => {
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('activeEventId')
-        .eq('id', 'global')
-        .maybeSingle()
-
-      const activeEventId = settingsData?.activeEventId || null
-
-      if (activeEventId) {
-        const { data: evData } = await supabase
-          .from('events')
-          .select('*')
-          .eq('id', activeEventId)
-          .maybeSingle()
-        setActiveEvent(evData || DEFAULT_EVENT)
-      } else {
-        const { data: firstEv } = await supabase
-          .from('events')
-          .select('*')
-          .limit(1)
-          .maybeSingle()
-        setActiveEvent(firstEv || DEFAULT_EVENT)
-      }
-    }
-    loadActiveEvent()
-  }, [])
+  // activeEvent được tính từ selectedFeedbackEventId hoặc fallback về ngày đầu tiên
+  const activeEvent = AUGUST_EVENTS.find(e => e.id === selectedFeedbackEventId) || null
 
   const {
     register,
@@ -1203,8 +1224,12 @@ function FeedbackForm({ onBack }) {
   const organizationRating = watch("organizationRating")
 
   const onSubmit = async (data) => {
+    if (!selectedFeedbackEventId) {
+      alert("Vui lòng chọn ngày bạn đã tham gia!")
+      return
+    }
     const { error } = await supabase.from('feedbacks').insert({
-      eventId: activeEvent?.id || null,
+      eventId: selectedFeedbackEventId || null,
       childName: data.childName,
       parentName: data.parentName,
       overallRating: data.overallRating,
@@ -1219,12 +1244,10 @@ function FeedbackForm({ onBack }) {
       submittedAt: new Date().toISOString()
     })
     if (error) { console.error('Lỗi gửi feedback:', error); return }
-    setSubmittedData(data)
+    setSubmittedData({ ...data, _eventDate: activeEvent?.date })
     setIsSubmitted(true)
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: ["#0044B0", "#F4B400", "#34A853"] })
   }
-
-  if (!activeEvent) return null;
 
   if (isSubmitted) {
     const wantsCourse = submittedData?.wantCourse === "Có"
@@ -1243,7 +1266,7 @@ function FeedbackForm({ onBack }) {
               </p>
             </div>
             <div className="flex gap-1">
-              {[1,2,3,4,5].map(s => (
+              {[1, 2, 3, 4, 5].map(s => (
                 <Star key={s} className={`w-7 h-7 ${s <= Number(submittedData?.overallRating) ? "fill-yellow-400 text-yellow-400" : "text-slate-200"}`} />
               ))}
             </div>
@@ -1323,9 +1346,31 @@ function FeedbackForm({ onBack }) {
                 Phản hồi của Ba/Mẹ là nguồn động lực quý giá giúp AiiLab ngày càng hoàn thiện. Chỉ mất 2 phút để chia sẻ!
               </p>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-500 bg-blue-50 rounded-xl p-3">
-              <Calendar className="w-4 h-4 text-primary shrink-0" />
-              <span>{activeEvent.name} — <strong className="text-primary">{activeEvent.date}</strong> · {activeEvent.time} · {activeEvent.location}</span>
+            {/* Chọn ngày tham gia */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-bold text-primary">
+                <Calendar className="w-4 h-4" />
+                Bạn đã tham gia buổi ngày nào? <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedFeedbackEventId}
+                onChange={e => setSelectedFeedbackEventId(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all bg-white appearance-none cursor-pointer"
+              >
+                <option value="">-- Chọn ngày tham gia --</option>
+                {AUGUST_EVENTS.map(ev => (
+                  <option key={ev.id} value={ev.id}>{ev.date} ({ev.time})</option>
+                ))}
+              </select>
+              {activeEvent && (
+                <div className="flex items-start gap-3 text-sm text-slate-500 bg-blue-50 rounded-xl p-3 mt-1">
+                  <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                  <span>{activeEvent.location}</span>
+                </div>
+              )}
+              {!selectedFeedbackEventId && (
+                <p className="text-xs text-slate-400">Vui lòng chọn ngày để tiếp tục điền phản hồi</p>
+              )}
             </div>
           </div>
         </div>
@@ -1431,11 +1476,10 @@ function FeedbackForm({ onBack }) {
                   ].map(opt => (
                     <label
                       key={opt.value}
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        watch("childInterest") === opt.value
-                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                          : `${opt.color} border-transparent`
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${watch("childInterest") === opt.value
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : `${opt.color} border-transparent`
+                        }`}
                     >
                       <input type="radio" className="sr-only" value={opt.value} {...register("childInterest")} />
                       {opt.icon}
@@ -1451,11 +1495,10 @@ function FeedbackForm({ onBack }) {
                   {["Rất muốn", "Có thể", "Chưa chắc"].map(opt => (
                     <label
                       key={opt}
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        watch("wouldJoinAgain") === opt
-                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                          : "border-slate-100 bg-slate-50 hover:bg-slate-100/70"
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${watch("wouldJoinAgain") === opt
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "border-slate-100 bg-slate-50 hover:bg-slate-100/70"
+                        }`}
                     >
                       <input type="radio" className="sr-only" value={opt} {...register("wouldJoinAgain")} />
                       <span className="text-sm font-semibold text-slate-700">{opt}</span>
@@ -1470,11 +1513,10 @@ function FeedbackForm({ onBack }) {
                   {["Chắc chắn có", "Có thể", "Chưa chắc"].map(opt => (
                     <label
                       key={opt}
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        watch("wouldRecommend") === opt
-                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                          : "border-slate-100 bg-slate-50 hover:bg-slate-100/70"
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${watch("wouldRecommend") === opt
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "border-slate-100 bg-slate-50 hover:bg-slate-100/70"
+                        }`}
                     >
                       <input type="radio" className="sr-only" value={opt} {...register("wouldRecommend")} />
                       <span className="text-sm font-semibold text-slate-700">{opt}</span>
@@ -1508,7 +1550,7 @@ function FeedbackForm({ onBack }) {
                 <div>
                   <p className="font-bold text-primary text-sm">Ưu đãi học phí đặc biệt</p>
                   <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                    Dành cho các gia đình đăng ký khóa học <strong>AI, Lập trình hoặc Robot</strong> trong vòng 7 ngày sau buổi trải nghiệm. Mã ưu đãi sẽ được gửi ngay khi bạn xác nhận bên dưới.
+                    Dành cho các gia đình đăng ký khóa học <strong>AI, Lập trình hoặc Robot</strong> tại AiiLab. Mã ưu đãi sẽ được gửi ngay khi bạn xác nhận bên dưới.
                   </p>
                 </div>
               </div>
@@ -1523,13 +1565,12 @@ function FeedbackForm({ onBack }) {
                   ].map(opt => (
                     <label
                       key={opt.value}
-                      className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        watch("wantCourse") === opt.value
-                          ? opt.highlight
-                            ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                            : "border-slate-300 bg-slate-50 ring-2 ring-slate-200"
-                          : "border-slate-100 bg-white hover:bg-slate-50"
-                      }`}
+                      className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${watch("wantCourse") === opt.value
+                        ? opt.highlight
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                          : "border-slate-300 bg-slate-50 ring-2 ring-slate-200"
+                        : "border-slate-100 bg-white hover:bg-slate-50"
+                        }`}
                     >
                       <input type="radio" className="sr-only" value={opt.value} {...register("wantCourse")} />
                       <span className="text-2xl leading-none mt-0.5">{opt.emoji}</span>
