@@ -45,6 +45,11 @@ import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group"
 import { Checkbox } from "./components/ui/checkbox"
 import { Dialog } from "./components/ui/dialog"
 
+// ─── AiiLab Arena ─────────────────────────────────────────────────────────────
+// Backend thi đấu: nhận hồ sơ đăng ký, tạo thí sinh + mã PIN 3 số và trả về link
+// thư mời (/invite/:code). Đổi domain khi test bằng biến môi trường VITE_ARENA_API.
+const ARENA_API = import.meta.env.VITE_ARENA_API || "https://club.aiilab.vn"
+
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
 const formSchema = z.object({
@@ -136,6 +141,21 @@ function RegistrationForm({ onNavigate }) {
   const [formData, setFormData] = useState(null)
   const [remainingSlotsMap, setRemainingSlotsMap] = useState({})
   const [visibleEvents, setVisibleEvents] = useState([])
+  // Thư mời do AiiLab Arena tạo (mã PIN + link in), null nếu Arena không phản hồi
+  const [invite, setInvite] = useState(null)
+  const [redirectIn, setRedirectIn] = useState(null)
+
+  // Đăng ký xong là tự mở thư mời của bé, vẫn để phụ huynh bấm sớm hoặc ở lại trang
+  useEffect(() => {
+    if (!isOpen || !invite) return
+    if (redirectIn === null) return
+    if (redirectIn <= 0) {
+      window.location.href = invite.url
+      return
+    }
+    const t = setTimeout(() => setRedirectIn((n) => n - 1), 1000)
+    return () => clearTimeout(t)
+  }, [isOpen, invite, redirectIn])
 
   useEffect(() => {
     let regsChannel = null
@@ -244,7 +264,7 @@ function RegistrationForm({ onNavigate }) {
   }
 
   const onSubmit = async (data) => {
-    const { error } = await supabase.from('registrations').insert({
+    const payload = {
       eventId: data.selectedEventId,
       studentName: data.studentName,
       studentAge: data.studentAge,
@@ -257,8 +277,33 @@ function RegistrationForm({ onNavigate }) {
       favoriteActivities: data.favoriteActivities || [],
       desiredSkills: data.desiredSkills || [],
       registeredAt: new Date().toISOString()
-    })
+    }
+    // .select().single() để lấy id hàng vừa tạo, dùng làm khóa chống trùng phía Arena
+    const { data: row, error } = await supabase.from('registrations').insert(payload).select().single()
     if (error) { console.error('Lỗi đăng ký:', error); return }
+
+    // Tạo thí sinh + mã PIN 3 số trong AiiLab Arena để đổ thư mời cho phụ huynh.
+    // Arena lỗi/mất mạng thì vẫn coi là đăng ký thành công (hồ sơ đã nằm ở Supabase,
+    // BTC nhập lại được ở club.aiilab.vn/admin) — chỉ là không có thư mời ngay.
+    let nextInvite = null
+    try {
+      const res = await fetch(`${ARENA_API}/api/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row?.id, ...payload })
+      })
+      const arena = await res.json()
+      if (res.ok && arena.ok) {
+        nextInvite = { pin: arena.player.pin, url: `${ARENA_API}${arena.player.invitePath}?new=1` }
+      } else {
+        console.error('Arena không tạo được thí sinh:', arena)
+      }
+    } catch (e) {
+      console.error('Không gọi được Arena:', e)
+    }
+
+    setInvite(nextInvite)
+    setRedirectIn(nextInvite ? 6 : null)
     setFormData(data)
     setIsOpen(true)
     triggerConfetti()
@@ -277,6 +322,8 @@ function RegistrationForm({ onNavigate }) {
 
   const handleCloseDialog = () => {
     setIsOpen(false)
+    setRedirectIn(null)
+    setInvite(null)
     reset()
   }
 
@@ -646,12 +693,52 @@ function RegistrationForm({ onNavigate }) {
               </div>
             </div>
           )}
+          {invite && (
+            <div className="w-full rounded-2xl border-2 border-secondary bg-[#FEF7E0] p-4 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">Mã PIN của bé</p>
+              <div className="flex justify-center gap-2">
+                {invite.pin.split("").map((digit, i) => (
+                  <span
+                    key={i}
+                    className="w-12 h-14 rounded-xl bg-secondary text-primary text-3xl font-extrabold flex items-center justify-center"
+                  >
+                    {digit}
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Bé dùng mã này để vào sân đấu tại <b>club.aiilab.vn</b>. Ba/Mẹ bấm bên dưới để xem
+                và <b>in thư mời</b> nhé!
+              </p>
+            </div>
+          )}
           <p className="text-xs text-slate-400 leading-relaxed">
             Chúng tôi sẽ nhanh chóng liên hệ với Ba/Mẹ qua số điện thoại để xác nhận thông tin chi tiết và sắp xếp chỗ ngồi. Hẹn gặp lại bé tại buổi trải nghiệm!
           </p>
-          <Button variant="default" className="w-full mt-4 bg-primary hover:bg-[#0038A0]" onClick={handleCloseDialog}>
-            Đồng ý
-          </Button>
+          {invite ? (
+            <div className="w-full space-y-2 mt-4">
+              <Button
+                variant="default"
+                className="w-full bg-primary hover:bg-[#0038A0]"
+                onClick={() => { window.location.href = invite.url }}
+              >
+                🎟️ Xem &amp; In thư mời ngay
+              </Button>
+              <button
+                type="button"
+                onClick={() => setRedirectIn(null)}
+                className="w-full text-xs text-slate-400 hover:text-primary transition-colors font-medium"
+              >
+                {redirectIn === null
+                  ? "Ba/Mẹ bấm nút trên khi muốn xem thư mời"
+                  : `Tự mở thư mời sau ${redirectIn}s — bấm để ở lại trang này`}
+              </button>
+            </div>
+          ) : (
+            <Button variant="default" className="w-full mt-4 bg-primary hover:bg-[#0038A0]" onClick={handleCloseDialog}>
+              Đồng ý
+            </Button>
+          )}
         </div>
       </Dialog>
     </div>
