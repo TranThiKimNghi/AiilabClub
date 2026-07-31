@@ -338,24 +338,25 @@ function RegistrationForm({ onNavigate }) {
           <div className="h-4 bg-primary w-full" />
           <div className="p-6 md:p-8 space-y-6">
             {/* Brand Row */}
-            <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-6">
-              <div className="flex items-center gap-4">
-                <img src={logoImg} className="w-14 h-20 md:w-16 md:h-24 object-contain shrink-0" alt="AiiLab Logo" />
-                <div>
-                  <h1 className="text-2xl font-extrabold tracking-tight text-primary leading-tight">
+            {/* Trên điện thoại: xếp dọc để badge "Đang mở đăng ký" và nav không tràn khỏi màn hình */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 border-b border-slate-100 pb-6">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                <img src={logoImg} className="w-12 h-16 sm:w-14 sm:h-20 md:w-16 md:h-24 object-contain shrink-0" alt="AiiLab Logo" />
+                <div className="min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-primary leading-tight">
                     AiiLab <span className="text-secondary">Club</span>
                   </h1>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
                     Innovation &amp; Technology
                   </p>
                 </div>
               </div>
-              <div className="shrink-0 flex flex-col items-end gap-2">
-                <span className="inline-flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold bg-[#FEF7E0] text-primary border border-secondary animate-pulse whitespace-nowrap">
+              <div className="flex flex-row-reverse sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 sm:shrink-0">
+                <span className="inline-flex items-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold bg-[#FEF7E0] text-primary border border-secondary animate-pulse whitespace-nowrap">
                   🔥 Đang mở đăng ký
                 </span>
                 {/* Hidden admin & feedback nav buttons */}
-                <div className="flex gap-2 mt-1">
+                <div className="flex gap-2 sm:mt-1">
                   <button
                     type="button"
                     onClick={() => onNavigate("feedback")}
