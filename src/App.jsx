@@ -48,7 +48,9 @@ import { Dialog } from "./components/ui/dialog"
 // ─── AiiLab Arena ─────────────────────────────────────────────────────────────
 // Backend thi đấu: nhận hồ sơ đăng ký, tạo thí sinh + mã PIN 3 số và trả về link
 // thư mời (/invite/:code). Đổi domain khi test bằng biến môi trường VITE_ARENA_API.
-const ARENA_API = import.meta.env.VITE_ARENA_API || "https://club.aiilab.vn"
+// Đặt VITE_ARENA_API="" (rỗng) khi trang được serve CÙNG domain với Arena
+// (bản chạy tại club.aiilab.vn/dangky) -> gọi API tương đối, khỏi CORS.
+const ARENA_API = import.meta.env.VITE_ARENA_API ?? "https://club.aiilab.vn"
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
