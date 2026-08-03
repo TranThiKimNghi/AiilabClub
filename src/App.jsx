@@ -66,10 +66,12 @@ const formSchema = z.object({
     .min(1, "Số điện thoại là bắt buộc")
     .regex(/(0[3|5|7|8|9])+([0-9]{8})\b/, "Số điện thoại không hợp lệ (ví dụ: 0987654321)"),
   parentEmail: z.string().email("Email không hợp lệ").optional().or(z.literal("")),
-  usedAi: z.string().optional(),
-  studiedCoding: z.string().optional(),
-  favoriteActivities: z.array(z.string()).default([]),
-  desiredSkills: z.array(z.string()).default([]),
+  q1_techUsage: z.string().optional(),
+  q2_parentFear: z.string().optional(),
+  q2_parentFearOther: z.string().optional(),
+  q3_desiredSkill: z.string().optional(),
+  q4_learningModel: z.string().optional(),
+  q5_bigQuestion: z.string().optional(),
 })
 
 const feedbackSchema = z.object({
@@ -246,24 +248,16 @@ function RegistrationForm({ onNavigate }) {
       parentName: "",
       parentPhone: "",
       parentEmail: "",
-      usedAi: "",
-      studiedCoding: "",
-      favoriteActivities: [],
-      desiredSkills: [],
+      q1_techUsage: "",
+      q2_parentFear: "",
+      q2_parentFearOther: "",
+      q3_desiredSkill: "",
+      q4_learningModel: "",
+      q5_bigQuestion: "",
     }
   })
 
-  const favoriteActivitiesWatch = watch("favoriteActivities")
-  const desiredSkillsWatch = watch("desiredSkills")
-
-  const handleCheckboxChange = (fieldName, option, checked) => {
-    const currentValues = watch(fieldName) || []
-    if (checked) {
-      setValue(fieldName, [...currentValues, option])
-    } else {
-      setValue(fieldName, currentValues.filter((val) => val !== option))
-    }
-  }
+  const q2ParentFearWatch = watch("q2_parentFear")
 
   const onSubmit = async (data) => {
     const payload = {
@@ -274,10 +268,12 @@ function RegistrationForm({ onNavigate }) {
       parentName: data.parentName,
       parentPhone: data.parentPhone,
       parentEmail: data.parentEmail || null,
-      usedAi: data.usedAi || null,
-      studiedCoding: data.studiedCoding || null,
-      favoriteActivities: data.favoriteActivities || [],
-      desiredSkills: data.desiredSkills || [],
+      q1_techUsage: data.q1_techUsage || null,
+      q2_parentFear: data.q2_parentFear || null,
+      q2_parentFearOther: data.q2_parentFearOther || null,
+      q3_desiredSkill: data.q3_desiredSkill || null,
+      q4_learningModel: data.q4_learningModel || null,
+      q5_bigQuestion: data.q5_bigQuestion || null,
       registeredAt: new Date().toISOString()
     }
     // .select().single() để lấy id hàng vừa tạo, dùng làm khóa chống trùng phía Arena
@@ -546,88 +542,217 @@ function RegistrationForm({ onNavigate }) {
             </CardContent>
           </Card>
 
-          {/* CARD 3: Khảo sát ý kiến */}
+          {/* CARD 3: Khảo sát chẩn đoán năng lực công nghệ */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2.5">
-                <div className="bg-primary/5 p-2 rounded-xl text-primary">
+                <div className="bg-primary/10 p-2.5 rounded-xl text-primary shrink-0">
                   <Brain className="w-5 h-5" />
                 </div>
                 <div>
-                  <CardTitle>Khảo sát nhỏ</CardTitle>
-                  <CardDescription>Giúp AiiLab chuẩn bị nội dung học phù hợp nhất với con</CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Phiếu phân tích xu hướng năng lực công nghệ</CardTitle>
+                    <span className="text-[10px] font-extrabold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-md">Miễn phí</span>
+                  </div>
+                  <CardDescription>Giúp Coach chẩn đoán chính xác tiềm năng và lộ trình cá nhân hóa cho bé</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-8 divide-y divide-slate-100">
 
-              {/* Q1 */}
+              {/* Q1: Mức độ tiếp xúc công nghệ */}
               <div className="space-y-4">
-                <Label className="text-base text-primary font-bold">Con đã từng sử dụng AI chưa?</Label>
-                <Controller
-                  name="usedAi"
-                  control={control}
-                  render={({ field }) => (
-                    <RadioGroup className="grid grid-cols-1 md:grid-cols-3 gap-3" value={field.value} onChange={(e) => field.onChange(e.target.value)}>
-                      <RadioGroupItem id="usedAi-chua" name="usedAi" value="Chưa" label="Chưa" checked={field.value === "Chưa"} onChange={() => setValue("usedAi", "Chưa")} />
-                      <RadioGroupItem id="usedAi-co" name="usedAi" value="Có" label="Có" checked={field.value === "Có"} onChange={() => setValue("usedAi", "Có")} />
-                      <RadioGroupItem id="usedAi-khongro" name="usedAi" value="Không rõ" label="Không rõ" checked={field.value === "Không rõ"} onChange={() => setValue("usedAi", "Không rõ")} />
-                    </RadioGroup>
-                  )}
-                />
-              </div>
-
-              {/* Q2 */}
-              <div className="space-y-4 pt-6">
-                <Label className="text-base text-primary font-bold">Con đã từng học lập trình chưa?</Label>
-                <Controller
-                  name="studiedCoding"
-                  control={control}
-                  render={({ field }) => (
-                    <RadioGroup className="grid grid-cols-1 sm:grid-cols-3 gap-3" value={field.value} onChange={(e) => field.onChange(e.target.value)}>
-                      <RadioGroupItem id="coding-chua" name="studiedCoding" value="Chưa" label="Chưa" checked={field.value === "Chưa"} onChange={() => setValue("studiedCoding", "Chưa")} />
-                      <RadioGroupItem id="coding-co-mot-chut" name="studiedCoding" value="Có một chút" label="Có một chút" checked={field.value === "Có một chút"} onChange={() => setValue("studiedCoding", "Có một chút")} />
-                      <RadioGroupItem id="coding-da-hoc-kha-nhieu" name="studiedCoding" value="Đã học khá nhiều" label="Đã học khá nhiều" checked={field.value === "Đã học khá nhiều"} onChange={() => setValue("studiedCoding", "Đã học khá nhiều")} />
-                    </RadioGroup>
-                  )}
-                />
-              </div>
-
-              {/* Q3 */}
-              <div className="space-y-4 pt-6">
                 <div className="space-y-1">
-                  <Label className="text-base text-primary font-bold">Con thích làm gì nhất trên máy tính?</Label>
-                  <p className="text-xs text-slate-400 font-medium">Ba mẹ có thể chọn các sở thích của con</p>
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <Label className="text-base text-primary font-bold">Ở nhà, con đang dành phần lớn thời gian trên máy tính/máy tính bảng để làm gì?</Label>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {["Chơi Game", "Xem YouTube / Phim", "Vẽ tranh / Thiết kế", "Lập trình / Lắp ráp Robot", "Học tập / Đọc báo", "Khác"].map((act) => (
-                    <Checkbox
-                      key={act}
-                      id={`act-${act}`}
-                      label={act}
-                      checked={favoriteActivitiesWatch?.includes(act)}
-                      onChange={(e) => handleCheckboxChange("favoriteActivities", act, e.target.checked)}
-                    />
+                <div className="grid grid-cols-1 gap-2.5">
+                  {[
+                    { val: "A", text: "Xem Youtube, chơi game, giải trí thuần túy.", tag: "Khởi động tư duy" },
+                    { val: "B", text: "Chủ động tìm tòi học tiếng Anh, vẽ tranh, xem các clip khoa học.", tag: "Tố chất tốt" },
+                    { val: "C", text: "Đã từng thử học qua các bộ môn lập trình cơ bản (Scratch, Robotics...) hoặc lắp ráp logic.", tag: "Đã có nền tảng" },
+                    { val: "D", text: "Rất ít khi được tiếp xúc với thiết bị công nghệ.", tag: "Cần tiếp cận" }
+                  ].map((item) => (
+                    <label
+                      key={item.val}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                        watch("q1_techUsage") === item.val
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+                          : "border-slate-100 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        className="sr-only"
+                        value={item.val}
+                        {...register("q1_techUsage")}
+                      />
+                      <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                        watch("q1_techUsage") === item.val ? "border-primary bg-primary text-white" : "border-slate-300 text-slate-500"
+                      }`}>
+                        {item.val}
+                      </span>
+                      <div className="flex-1 text-sm font-medium text-slate-700 leading-snug">
+                        {item.text}
+                      </div>
+                    </label>
                   ))}
                 </div>
               </div>
 
-              {/* Q4 */}
+              {/* Q2: Nỗi sợ/nỗi lo lớn nhất */}
               <div className="space-y-4 pt-6">
                 <div className="space-y-1">
-                  <Label className="text-base text-primary font-bold">Ba/Mẹ mong muốn con phát triển kỹ năng gì?</Label>
-                  <p className="text-xs text-slate-400 font-medium">Ba mẹ có thể lựa chọn nhiều kỹ năng mong muốn</p>
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <Label className="text-base text-primary font-bold">Điều gì khiến anh/chị lo lắng nhất khi nghĩ về tương lai nghề nghiệp và học tập của con trong 5–10 năm tới?</Label>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {["AI", "Lập trình", "Robot", "Tư duy Logic", "Làm việc nhóm", "Thuyết trình", "Khác"].map((skill) => (
-                    <Checkbox
-                      key={skill}
-                      id={`skill-${skill}`}
-                      label={skill}
-                      checked={desiredSkillsWatch?.includes(skill)}
-                      onChange={(e) => handleCheckboxChange("desiredSkills", skill, e.target.checked)}
-                    />
+                <div className="grid grid-cols-1 gap-2.5">
+                  {[
+                    { val: "A", text: "Con bị thụ động, lười suy nghĩ và quá phụ thuộc vào các công cụ công nghệ/AI." },
+                    { val: "B", text: "Con không bắt kịp xu hướng, thiếu kỹ năng máy tính và dễ bị tụt lại phía sau so với bạn bè." },
+                    { val: "C", text: "Con thiếu tư duy phản biện và khả năng giải quyết các bài toán phức tạp trong thực tế." },
+                    { val: "D", text: "Ý kiến khác:" }
+                  ].map((item) => (
+                    <label
+                      key={item.val}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                        watch("q2_parentFear") === item.val
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+                          : "border-slate-100 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        className="sr-only"
+                        value={item.val}
+                        {...register("q2_parentFear")}
+                      />
+                      <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                        watch("q2_parentFear") === item.val ? "border-primary bg-primary text-white" : "border-slate-300 text-slate-500"
+                      }`}>
+                        {item.val}
+                      </span>
+                      <div className="flex-1 text-sm font-medium text-slate-700 leading-snug">
+                        {item.text}
+                      </div>
+                    </label>
                   ))}
+                </div>
+
+                {/* Sub-input if D selected */}
+                {q2ParentFearWatch === "D" && (
+                  <div className="pl-9 pt-1 animate-fadeIn">
+                    <Input
+                      placeholder="Chia sẻ thêm nỗi lo hoặc mong muốn của anh/chị..."
+                      {...register("q2_parentFearOther")}
+                      className="bg-white border-primary/40 text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Q3: Mức độ ưu tiên kỹ năng */}
+              <div className="space-y-4 pt-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">3</span>
+                    <Label className="text-base text-primary font-bold">Nếu được chọn 1 kỹ năng cốt lõi nhất để trang bị cho con ngay lúc này, anh/chị mong muốn con vượt trội về điều gì?</Label>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2.5">
+                  {[
+                    { val: "A", text: "Khả năng tập trung, tư duy logic và giải quyết vấn đề từng bước." },
+                    { val: "B", text: "Sự nhạy bén với công nghệ mới (biết cách điều khiển máy tính, ra lệnh cho AI hiệu quả)." },
+                    { val: "C", text: "Tính chủ động, dám thử nghiệm và tạo ra các sản phẩm thực tế từ ý tưởng của mình." }
+                  ].map((item) => (
+                    <label
+                      key={item.val}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                        watch("q3_desiredSkill") === item.val
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+                          : "border-slate-100 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        className="sr-only"
+                        value={item.val}
+                        {...register("q3_desiredSkill")}
+                      />
+                      <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                        watch("q3_desiredSkill") === item.val ? "border-primary bg-primary text-white" : "border-slate-300 text-slate-500"
+                      }`}>
+                        {item.val}
+                      </span>
+                      <div className="flex-1 text-sm font-medium text-slate-700 leading-snug">
+                        {item.text}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Q4: Khảo sát thói quen đầu tư giáo dục */}
+              <div className="space-y-4 pt-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">4</span>
+                    <Label className="text-base text-primary font-bold">Anh/chị thường ưu tiên lựa chọn mô hình học tập nào nhất cho con khi học các bộ môn tư duy/năng khiếu?</Label>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2.5">
+                  {[
+                    { val: "A", text: "Lớp học sĩ số lớn để con có môi trường tương tác đông vui." },
+                    { val: "B", text: "Lớp học nhóm siêu nhỏ (3–5 bạn) để thầy cô kèm cặp sát sao, cá nhân hóa theo tốc độ của con." },
+                    { val: "C", text: "Các khóa học trực tuyến (Online) để linh hoạt thời gian tại nhà." }
+                  ].map((item) => (
+                    <label
+                      key={item.val}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                        watch("q4_learningModel") === item.val
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm"
+                          : "border-slate-100 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        className="sr-only"
+                        value={item.val}
+                        {...register("q4_learningModel")}
+                      />
+                      <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                        watch("q4_learningModel") === item.val ? "border-primary bg-primary text-white" : "border-slate-300 text-slate-500"
+                      }`}>
+                        {item.val}
+                      </span>
+                      <div className="flex-1 text-sm font-medium text-slate-700 leading-snug">
+                        {item.text}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Q5: Câu hỏi mở tạo cơ hội thảo luận */}
+              <div className="space-y-4 pt-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">5</span>
+                    <Label className="text-base text-primary font-bold">Đâu là trăn trở hoặc câu hỏi lớn nhất mà anh/chị muốn thảo luận trực tiếp cùng Giám đốc chương trình/Coach của AiiLab tại sự kiện tuần này?</Label>
+                  </div>
+                  <p className="text-xs text-slate-400 pl-8">Ví dụ: Lộ trình học cho bé 8 tuổi, cách quản lý thời gian dùng máy tính của con...</p>
+                </div>
+                <div className="pl-8">
+                  <textarea
+                    rows={3}
+                    placeholder="Nhập trăn trở hoặc thắc mắc của anh/chị tại đây..."
+                    {...register("q5_bigQuestion")}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all resize-none text-slate-700 placeholder:text-slate-300"
+                  />
                 </div>
               </div>
 
@@ -1099,47 +1224,93 @@ function AdminView({ onBack }) {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {filteredRegistrations.map((reg, i) => (
-                      <div key={i} className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden hover:shadow-sm transition-shadow">
-                        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {/* Left: student info */}
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="w-7 h-7 bg-primary text-white rounded-full flex items-center justify-center text-xs font-extrabold shrink-0">{i + 1}</span>
-                              <span className="font-bold text-slate-800 text-sm">{reg.studentName}</span>
+                    {filteredRegistrations.map((reg, i) => {
+                      const isHotLead = Boolean(reg.q5_bigQuestion || reg.q4_learningModel === "B");
+                      return (
+                      <div key={i} className={`rounded-2xl border overflow-hidden hover:shadow-md transition-shadow ${isHotLead ? 'bg-amber-50/40 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
+                        <div className="p-4 space-y-3">
+                          {/* Header row: Info & Status */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-3 border-b border-slate-200/60">
+                            {/* Left: student info */}
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="w-7 h-7 bg-primary text-white rounded-full flex items-center justify-center text-xs font-extrabold shrink-0">{i + 1}</span>
+                                <span className="font-bold text-slate-800 text-base">{reg.studentName}</span>
+                                {isHotLead && (
+                                  <span className="text-[10px] font-extrabold bg-amber-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    🔥 HOT LEAD
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500 pl-9">{reg.studentAge} tuổi {reg.studentClass ? `• Lớp ${reg.studentClass}` : ""}</p>
                             </div>
-                            <p className="text-xs text-slate-500 pl-9">{reg.studentAge} tuổi {reg.studentClass ? `• Lớp ${reg.studentClass}` : ""}</p>
-                          </div>
-                          {/* Middle: parent */}
-                          <div className="space-y-1">
-                            <p className="text-xs text-slate-400 font-medium">Phụ huynh</p>
-                            <p className="text-sm font-semibold text-slate-700">{reg.parentName}</p>
-                            <p className="text-xs text-slate-500 flex items-center gap-1"><Phone className="w-3 h-3" />{reg.parentPhone}</p>
-                            {reg.parentEmail && <p className="text-xs text-slate-500 flex items-center gap-1"><Mail className="w-3 h-3" />{reg.parentEmail}</p>}
-                          </div>
-                          {/* Right: survey & actions */}
-                          <div className="space-y-2">
-                            <div className="flex flex-wrap gap-1.5">
-                              {reg.usedAi && <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded-full">AI: {reg.usedAi}</span>}
-                              {reg.studiedCoding && <span className="text-[10px] bg-purple-50 text-purple-600 font-bold px-2 py-0.5 rounded-full">Code: {reg.studiedCoding}</span>}
+                            {/* Middle: parent */}
+                            <div className="space-y-1">
+                              <p className="text-xs text-slate-400 font-medium">Phụ huynh</p>
+                              <p className="text-sm font-semibold text-slate-700">{reg.parentName}</p>
+                              <p className="text-xs text-slate-500 flex items-center gap-1"><Phone className="w-3 h-3 text-primary" /><strong className="text-slate-800">{reg.parentPhone}</strong></p>
+                              {reg.parentEmail && <p className="text-xs text-slate-500 flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" />{reg.parentEmail}</p>}
                             </div>
-                            {reg.desiredSkills?.length > 0 && (
-                              <p className="text-xs text-slate-400">Kỹ năng: {reg.desiredSkills.join(", ")}</p>
-                            )}
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] text-slate-300">{reg.registeredAt ? new Date(reg.registeredAt).toLocaleString("vi-VN") : ""}</p>
+                            {/* Right: Date & Actions */}
+                            <div className="flex flex-col justify-between items-end">
+                              <p className="text-[11px] text-slate-400 font-medium">{reg.registeredAt ? new Date(reg.registeredAt).toLocaleString("vi-VN") : ""}</p>
                               <button
                                 onClick={() => setDeleteConfirm({ index: i, type: "reg" })}
-                                className="text-red-400 hover:text-red-600 transition-colors p-1 rounded"
+                                className="text-red-400 hover:text-red-600 transition-colors p-1.5 bg-red-50 rounded-lg"
                                 title="Xóa"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
+
+                          {/* Diagnostic Survey Data Section */}
+                          <div className="bg-white/80 rounded-xl p-3.5 border border-slate-100 text-xs space-y-2.5">
+                            <p className="font-extrabold text-primary text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                              <Brain className="w-3.5 h-3.5 text-primary" /> Báo cáo Chẩn đoán Tâm lý & Kỳ vọng Phụ huynh:
+                            </p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-700">
+                              <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                <span className="font-bold text-slate-500">Q1. Mức độ công nghệ: </span>
+                                <span className="font-semibold text-slate-800">
+                                  {reg.q1_techUsage ? `Đáp án ${reg.q1_techUsage}` : reg.usedAi ? `Dùng AI: ${reg.usedAi}` : "Chưa có dữ liệu"}
+                                </span>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                <span className="font-bold text-slate-500">Q2. Nỗi lo lớn nhất (Pain Point): </span>
+                                <span className="font-semibold text-slate-800">
+                                  {reg.q2_parentFear ? `Đáp án ${reg.q2_parentFear}` : "Chưa chọn"}
+                                  {reg.q2_parentFearOther ? ` (${reg.q2_parentFearOther})` : ""}
+                                </span>
+                              </div>
+                              <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                <span className="font-bold text-slate-500">Q3. Kỳ vọng kỹ năng cốt lõi: </span>
+                                <span className="font-semibold text-slate-800">
+                                  {reg.q3_desiredSkill ? `Đáp án ${reg.q3_desiredSkill}` : reg.desiredSkills?.length ? reg.desiredSkills.join(", ") : "Chưa chọn"}
+                                </span>
+                              </div>
+                              <div className={`p-2 rounded-lg border ${reg.q4_learningModel === "B" ? "bg-emerald-50 border-emerald-200 text-emerald-900 font-bold" : "bg-slate-50 border-slate-100"}`}>
+                                <span className="font-bold text-slate-500">Q4. Mô hình ưu tiên: </span>
+                                <span>
+                                  {reg.q4_learningModel ? `Đáp án ${reg.q4_learningModel}` : "Chưa chọn"}
+                                  {reg.q4_learningModel === "B" && " 🎯 (Khớp 100% AiiLab: Lớp nhóm 3-5 bạn)"}
+                                </span>
+                              </div>
+                            </div>
+
+                            {reg.q5_bigQuestion && (
+                              <div className="bg-amber-50/80 p-2.5 rounded-lg border border-amber-200 text-slate-800 space-y-0.5">
+                                <p className="font-extrabold text-amber-800 text-[11px] flex items-center gap-1">
+                                  💬 Q5. Trăn trở / Câu hỏi lớn nhất của phụ huynh:
+                                </p>
+                                <p className="italic font-medium text-slate-700 bg-white/60 p-2 rounded border border-amber-100/60 mt-1">{reg.q5_bigQuestion}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
               </div>
